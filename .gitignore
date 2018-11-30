@@ -21,6 +21,7 @@ sdist/
 var/
 wheels/
 *.egg-info/
+*/*.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
@@ -102,3 +103,7 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# pycharm
+.idea/
+*$/__pycache__/
