@@ -57,7 +57,12 @@ class LlamaEnsembl(object):
             return '', ''
         exon_numbers = self.get_exon_numbers(exons[0].gene_name)
         transcript = exon_numbers['transcript'].values[0]
-        return transcript, ','.join([str(number) for number in exon_numbers['number'].values])
+        trx_exons = []
+        for ex in exons:
+            nrow = exon_numbers[exon_numbers['id'] == ex.exon_id]
+            if nrow.shape[0] > 0:
+                trx_exons.extend(nrow['number'].values)
+        return transcript, ','.join([str(number) for number in trx_exons])
 
     def annotate_dataframe(self, df, chrom_col='CHROM', start_col='START', end_col='END'):
         genes = []

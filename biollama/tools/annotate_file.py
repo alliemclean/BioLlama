@@ -12,6 +12,7 @@ from biollama.core.annotation import LlamaEnsembl
 HG_BLAT_COLS = ['ACTIONS', 'QUERY', 'SCORE', 'START', 'END', 'QSIZE', 'IDENTITY', 'CHROM', 'STRAND',
                               'START', 'END', 'SPAN']
 
+
 class SeqDoc(object):
     """ a sequence document to be annotated """
     def __init__(self, df=None):
@@ -40,7 +41,14 @@ class SeqDoc(object):
             lines = [fhead.readline()]
         if all([word in lines[0] for word in HG_BLAT_COLS]):
             return HgBlatDoc
+        cols = lines[0].strip().split('\t')
+        try:
+            if isinstance(int(cols[1]), int) and isinstance(int(cols[2]), int) and cols[5] in ['-', '+']:
+                return BedDoc
+        except ValueError:
+            pass
         return None
+
 
 class HgBlatDoc(SeqDoc):
     """ copied and pasted data from Blat output at UCSC
@@ -68,6 +76,24 @@ class HgBlatDoc(SeqDoc):
         names[ind_start] = 'MATCH_START'
         names[ind_end] = 'MATCH_END'
         return names
+
+
+class BedDoc(SeqDoc):
+    """ bed file
+        6 columns with no header
+    """
+    def __init__(self, pfile):
+        super(BedDoc, self).__init__()
+        self.df = self.read_file(pfile)
+
+    def read_file(self, pfile):
+        df = pd.read_csv(pfile, sep="\t", names=self.columns, header=None)
+        return df
+
+    @property
+    def columns(self):
+        """ change first start and end columns to match_start, match_end"""
+        return ['CHROM', 'START', 'END', 'NAME', 'INFO', 'STRAND']
 
 
 def main(args=None):
