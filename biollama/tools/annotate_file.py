@@ -43,6 +43,13 @@ class SeqDoc(object):
             return HgBlatDoc
         cols = lines[0].strip().split('\t')
         try:
+            if len(cols) < 5:
+                for i in range(3):
+                    bv = True
+                    if not isinstance(int(cols[i]), int):
+                        bv = False
+                if bv:
+                    return BedDoc
             if isinstance(int(cols[1]), int) and isinstance(int(cols[2]), int) and cols[5] in ['-', '+']:
                 return BedDoc
         except ValueError:
