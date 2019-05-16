@@ -44,7 +44,7 @@ class SeqDoc(object):
         cols = lines[0].strip().split('\t')
         try:
             if len(cols) < 5:
-                for i in range(3):
+                for i in range(1, 3):  # first column could be a chromosome (ex. X, Y, mt)
                     bv = True
                     if not isinstance(int(cols[i]), int):
                         bv = False
