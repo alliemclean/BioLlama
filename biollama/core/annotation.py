@@ -107,7 +107,7 @@ class LlamaEnsembl(object):
         new_df = pd.DataFrame({'genes': genes, 'exons': exons, 'transcript': transcripts}, index=df.index)
         return new_df
 
-    def annotate_variants(self, rsid_array, extra_cols=None):
+    def annotate_variants(self, rsid_array, extra_cols=[]):
         """ Get chom:start-end for a list of variants """
         result = {'chrom': [], 'start': [], 'end': [], 'rsid': [], 'allele': [], 'vartype': [], 'consequence': []}
         for extra in extra_cols:
