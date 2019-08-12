@@ -1,6 +1,14 @@
+"""
+https://pypi.org/project/pyensembl/
+
+"""
+
 import numpy as np
 import pandas as pd
 from pyensembl import EnsemblRelease
+import requests
+import json
+import sys
 
 
 class LlamaEnsembl(object):
@@ -8,6 +16,19 @@ class LlamaEnsembl(object):
     def __init__(self, version=75):
         self.version = version
         self.db = EnsemblRelease(version)
+        self.rest_url = "http://grch37.rest.ensembl.org"
+
+    def rest_call(self, ext, data):
+        headers = {"Content-Type": "application/json", "Accept": "application/json"}
+        r = requests.post(self.rest_url + ext, headers=headers, data=data)
+
+        if not r.ok:
+            r.raise_for_status()
+            sys.exit()
+
+        decoded = r.json()
+        # print(repr(decoded))
+        return decoded
 
     def load_ensembl_ref(self, rid=None):
         """ Download, load, and index ensembl data """
@@ -45,6 +66,11 @@ class LlamaEnsembl(object):
     def get_genes(self, chrom, start, stop):
         return [gobj.gene_name for gobj in self.db.genes_at_locus(chrom, start, stop)]
 
+    def get_rsids(self, rsids):
+        ext = "/variation/homo_sapiens"
+        data = {"ids": rsids}
+        return self.rest_call(ext, json.dumps(data))
+
     def parse_ref_exons(self, chrom, start, stop):
         """ Return fasta reference with only the sequences needed"""
         ens_db = self.db
@@ -80,3 +106,22 @@ class LlamaEnsembl(object):
             transcripts.append(trans_row)
         new_df = pd.DataFrame({'genes': genes, 'exons': exons, 'transcript': transcripts}, index=df.index)
         return new_df
+
+    def annotate_variants(self, rsid_array, extra_cols=[]):
+        """ Get chom:start-end for a list of variants """
+        result = {'chrom': [], 'start': [], 'end': [], 'rsid': [], 'allele': [], 'vartype': [], 'consequence': []}
+        for extra in extra_cols:
+            result[extra] = []
+        response = self.get_rsids(rsid_array)
+        for var in rsid_array:
+            mapping = response[var]['mappings'][0]
+            result['chrom'].append(mapping['seq_region_name'])
+            result['start'].append(mapping['start'])
+            result['end'].append(mapping['end'])
+            result['rsid'].append(var)
+            result['allele'].append(mapping['allele_string'])
+            result['vartype'].append(response[var]['var_class'])
+            result['consequence'].append(response[var]['most_severe_consequence'])
+            for extra in extra_cols:
+                result[extra].append(response[var][extra])
+        return pd.DataFrame(result)
