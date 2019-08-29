@@ -1,5 +1,6 @@
 """
 https://pypi.org/project/pyensembl/
+https://grch37.rest.ensembl.org
 
 """
 
@@ -18,9 +19,13 @@ class LlamaEnsembl(object):
         self.db = EnsemblRelease(version)
         self.rest_url = "http://grch37.rest.ensembl.org"
 
-    def rest_call(self, ext, data):
-        headers = {"Content-Type": "application/json", "Accept": "application/json"}
-        r = requests.post(self.rest_url + ext, headers=headers, data=data)
+    def rest_call(self, ext, data=None):
+        if data:
+            headers = {"Content-Type": "application/json", "Accept": "application/json"}
+            r = requests.post(self.rest_url + ext, headers=headers, data=data)
+        else:
+            headers = {"Content-Type": "application/json"}
+            r = requests.get(self.rest_url + ext, headers=headers)
 
         if not r.ok:
             r.raise_for_status()
@@ -66,10 +71,20 @@ class LlamaEnsembl(object):
     def get_genes(self, chrom, start, stop):
         return [gobj.gene_name for gobj in self.db.genes_at_locus(chrom, start, stop)]
 
+    # Rest client calls
     def get_rsids(self, rsids):
         ext = "/variation/homo_sapiens"
         data = {"ids": rsids}
         return self.rest_call(ext, json.dumps(data))
+
+    def get_cds_region(self, transcript, position):
+        """ get location of variant to """
+        ext = "/variation/human/{}:{}?".format(transcript, position)
+        try:
+            mappings = self.rest_call(ext)['mappings'][0]
+        except requests.exceptions.HTTPError:
+            return '', '', ''
+        return mappings['seq_region_name'], mappings['start'], mappings['end']
 
     def parse_ref_exons(self, chrom, start, stop):
         """ Return fasta reference with only the sequences needed"""
@@ -90,6 +105,7 @@ class LlamaEnsembl(object):
                 trx_exons.extend(nrow['number'].values)
         return transcript, ','.join([str(number) for number in trx_exons])
 
+    # Annotate DataFrames
     def annotate_dataframe(self, df, chrom_col='CHROM', start_col='START', end_col='END'):
         genes = []
         exons = []
@@ -125,3 +141,17 @@ class LlamaEnsembl(object):
             for extra in extra_cols:
                 result[extra].append(response[var][extra])
         return pd.DataFrame(result)
+
+    def annotate_cds_regions(self, df, tx_col='NM', cds_col='MutationName'):
+        chroms = []
+        starts = []
+        ends = []
+        for _, row in df.iterrows():
+            location = self.get_cds_region(row[tx_col], row[cds_col])
+            chroms.append(location[0])
+            starts.append(location[1])
+            ends.append(location[2])
+        df['chrom'] = chroms
+        df['start'] = starts
+        df['end'] = ends
+        return df

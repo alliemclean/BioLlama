@@ -28,7 +28,16 @@ def test_rsid():
     print(df)
 
 
+def test_cds_convert():
+    llama = LlamaEnsembl()
+    result = llama.get_cds_region('NM_015506.2', 'c.1A>G')
+    result2 = llama.get_cds_region('NM_015506.2', 'c.445_446del')
+    print(result)
+    print(result2)
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1:
+        test_cds_convert()
         test_sequence()
         test_rsid()
