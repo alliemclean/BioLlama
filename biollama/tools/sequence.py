@@ -25,7 +25,8 @@ class Sequence(object):
         print(response)
         et = ET.fromstring(response.content)
         dna = et.getchildren()[0].getchildren()[0].text  # DNA
-        return dna.replace('\n', '')
+        self.sequence = dna.replace('\n', '')
+        return self.sequence
 
     def __str__(self):
         return self.sequence
