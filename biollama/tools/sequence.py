@@ -22,10 +22,11 @@ class Sequence(object):
         if '-' in region:
             region.replace('-', ',')
         response = requests.get("{}{}".format(url, region))
-        print(response)
         et = ET.fromstring(response.content)
         dna = et.getchildren()[0].getchildren()[0].text  # DNA
         self.sequence = dna.replace('\n', '')
+        self.length = len(self.sequence)
+        self.alphabet = set([i for i in self.sequence])
         return self.sequence
 
     def __str__(self):
