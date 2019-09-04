@@ -1,6 +1,7 @@
 import random
 import requests
 import xml.etree.ElementTree as ET
+from collections import Counter
 
 
 class Sequence(object):
@@ -22,12 +23,39 @@ class Sequence(object):
         if '-' in region:
             region.replace('-', ',')
         response = requests.get("{}{}".format(url, region))
-        et = ET.fromstring(response.content)
-        dna = et.getchildren()[0].getchildren()[0].text  # DNA
+        try:
+            et = ET.fromstring(response.content)
+            dna = et.getchildren()[0].getchildren()[0].text  # DNA
+        except ET.ParseError:
+            print('Sequence not found.  {}\n{}'.format(region, response.content))
+            dna = ''
         self.sequence = dna.replace('\n', '')
         self.length = len(self.sequence)
         self.alphabet = set([i for i in self.sequence])
         return self.sequence
+
+    def gc_content(self, bases='CGcg'):
+        """ GC content of sequence """
+        if not len(self.sequence):
+            return 0
+        ct = Counter([i for i in self.sequence])
+        total = 0
+        for i in bases:
+            total += ct[i]
+        return float(total)/sum(ct.values())
+
+    def calculate_tm(self, bases='CGcg'):
+        """ Melting temperature for sequence
+           https://primerdigital.com/fastpcr/m7.html
+           Marmur and Doty equation for long duplexes
+        """
+        if not len(self.sequence):
+            return 0
+        ct = Counter([i for i in self.sequence])
+        total = 0
+        for i in bases:
+            total += ct[i]
+        return (41 * float(total) - 650)/sum(ct.values()) + 69.3
 
     def __str__(self):
         return self.sequence
