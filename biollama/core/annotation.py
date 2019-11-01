@@ -155,3 +155,36 @@ class LlamaEnsembl(object):
         df['start'] = starts
         df['end'] = ends
         return df
+
+
+class CosmicResult(object):
+    def __init__(self, decoded, cosmid):
+        self.raw = decoded
+        self.internal_id = decoded[0]
+        record_names = decoded[1]
+        records = decoded[3]
+        self.records = {name: record for name, record in zip(record_names, records)}
+        self.id = cosmid
+        self.gene = self.records[cosmid][1]
+        self.hgvs = self.records[cosmid][2]
+        self.hgvs_p = self.records[cosmid][3]
+
+    def __str__(self):
+        return "id:{} gene:{} hgvs:{} hgvs_p:{}".format(self.id, self.gene, self.hgvs, self.hgvs_p)
+
+
+class CosmicLlama(object):
+    """ query clintable for cosmic ids """
+    def __init__(self):
+        self.url = "https://clinicaltables.nlm.nih.gov/api/cosmic/v3/search"
+
+    def query(self, cosmid):
+        qstring = "?terms={}".format(cosmid)
+        res = requests.get("{}{}".format(self.url, qstring), headers={"Content-Type": "application/json"})
+        if not res.ok:
+            res.raise_for_status()
+            sys.exit()
+
+        decoded = res.json()
+        # print(repr(decoded))
+        return CosmicResult(decoded, cosmid)
