@@ -10,6 +10,7 @@ from pyensembl import EnsemblRelease
 import requests
 import json
 import sys
+from . import get_pos_flds, exon_df_from_ref
 
 
 class LlamaEnsembl(object):
@@ -70,6 +71,11 @@ class LlamaEnsembl(object):
 
     def get_genes(self, chrom, start, stop):
         return [gobj.gene_name for gobj in self.db.genes_at_locus(chrom, start, stop)]
+
+    def get_gene_pos(self, gene):
+        gene_id = self.db.gene_ids_of_gene_name(gene)[0]
+        result = self.db.gene_by_id(gene_id)
+        return result.contig, result.start, result.end
 
     # Rest client calls
     def get_rsids(self, rsids):
@@ -165,20 +171,51 @@ class CosmicResult(object):
         records = decoded[3]
         self.records = {name: record for name, record in zip(record_names, records)}
         self.id = cosmid
-        self.gene = self.records[cosmid][1]
-        self.hgvs = self.records[cosmid][2]
-        self.hgvs_p = self.records[cosmid][3]
+        dd = {k: [] for k in ['cosmic_query', 'id', 'gene', 'hgvs', 'hgvs_p']}
+        for rec in records:
+            dd['cosmic_query'].append(cosmid)
+            dd['id'].append(rec[0])
+            dd['gene'].append(rec[1])
+            dd['hgvs'].append(rec[2])
+            dd['hgvs_p'].append(rec[3])
+        self.result = pd.DataFrame(dd)
+
+
+class CosmicResultV3(object):
+    def __init__(self, decoded, cosmid):
+        self.raw = decoded
+        self.internal_id = decoded[0]
+        record_names = decoded[1]
+        records = decoded[3]
+        self.records = {name: record for name, record in zip(record_names, records)}
+        self.id = cosmid
+        try:
+            self.gene = self.records[cosmid][1]
+            self.hgvs = self.records[cosmid][2]
+            self.hgvs_p = self.records[cosmid][3]
+        except KeyError as e:
+            print(self.raw)
+            raise e
 
     def __str__(self):
         return "id:{} gene:{} hgvs:{} hgvs_p:{}".format(self.id, self.gene, self.hgvs, self.hgvs_p)
 
 
 class CosmicLlama(object):
-    """ query clintable for cosmic ids """
-    def __init__(self):
-        self.url = "https://clinicaltables.nlm.nih.gov/api/cosmic/v3/search"
+    """ query clintable for cosmic ids.  Supports v3 and v4 from Clintables API"""
+    def __init__(self, version='v4'):
+        if version.lower() == 'v3':
+            self.url = "https://clinicaltables.nlm.nih.gov/api/cosmic/v3/search"
+        elif version.lower() == 'v4':
+            self.url = "https://clinicaltables.nlm.nih.gov/api/cosmic/v4/search"
+        else:
+            raise NotImplementedError('Supported versions are "v3" and "v4')
+        self.version = version
 
     def query(self, cosmid):
+        """ return CosmicResultV3 object which has hgvs data in the attributes
+            or CosmicResult object with .results as dataframe for v4
+        """
         qstring = "?terms={}".format(cosmid)
         res = requests.get("{}{}".format(self.url, qstring), headers={"Content-Type": "application/json"})
         if not res.ok:
@@ -186,5 +223,70 @@ class CosmicLlama(object):
             sys.exit()
 
         decoded = res.json()
-        # print(repr(decoded))
+        if self.version == "v3":
+            return CosmicResultV3(decoded, cosmid)
         return CosmicResult(decoded, cosmid)
+
+
+class UCSCResult(object):
+    def __init__(self, decoded):
+        self.raw = decoded
+        ncbi_data = decoded['ncbiRefSeq']
+        self.ncbi = {}
+        for record in ncbi_data:
+            starts = record['exonStarts']
+            ends = record['exonEnds']
+            strand = record['strand']
+            exon_info = exon_df_from_ref(starts, ends, cds_start=record['cdsStart'], cds_end=record['cdsEnd'],
+                                         strand=strand)
+            self.ncbi[record['name']] = {'gene': record['name2'],
+                                         'exon_count': record['exonCount'],
+                                         'strand': strand,
+                                         'cds_length': exon_info['cds_length'].values[0],
+                                         'exon_df': exon_info}
+
+    def longest(self, gene=None):
+        """ get longest transcript """
+        maxlen = 0
+        maxrec = None
+        if gene is not None:
+            records = [rec for rec in self.ncbi]
+        else:
+            records = self.ncbi
+        for record in records:
+            if self.ncbi[record]['cds_length'] > maxlen:
+                maxrec = record
+                maxlen = self.ncbi[record]['cds_length']
+        data = self.ncbi[maxrec]
+        data['transcript'] = maxrec
+        return data
+
+    def genes(self):
+        """ get all genes in result """
+        return list(set([self.ncbi[res]['gene'] for res in self.ncbi]))
+
+    def df(self):
+        dd = {k: [] for k in ['name', 'gene', 'exon_count', 'strand', 'cds_length']}
+        for res in self.ncbi:
+            dd['name'].append(res)
+            dd['gene'].append(self.ncbi['gene'])
+            dd['exon_count'].append(self.ncbi['exon_count'])
+            dd['strand'].append(self.ncbi['strand'])
+            dd['cds_length'].append(self.ncbi['cds_length'])
+        return pd.DataFrame(dd)
+
+
+class UCSCapi(object):
+    def __init__(self):
+        self.url = "https://api.genome.ucsc.edu/getData/track?genome=hg19;track=ncbiRefSeq;"
+
+    def query(self, region):
+        chrom, start, end = get_pos_flds(region)
+        qstring = 'chrom={};start={};end={}'.format(chrom, start, end)
+        res = requests.get(self.url + qstring)
+        if not res.ok:
+            res.raise_for_status()
+            sys.exit()
+
+        decoded = res.json()
+        return UCSCResult(decoded)

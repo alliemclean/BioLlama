@@ -1,10 +1,16 @@
 import sys
-from biollama.core.annotation import CosmicLlama, LlamaEnsembl
+from biollama.core.annotation import CosmicLlama, LlamaEnsembl, UCSCapi
+from biollama.tools.get_gene_transcripts import annotate
 import pandas as pd
 
 
 def test_cosmic_id():
     cl = CosmicLlama()
+    print(cl.query('COSV51769364'))
+
+
+def test_cosmic_id_v3():
+    cl = CosmicLlama(version="v3")
     print(cl.query('COSM476'))
 
 
@@ -20,7 +26,37 @@ def test_annotation():
     assert(mdf[mdf['exons'] != mdf['exon_exp']].shape[0] == 0)
 
 
+def test_ucsc():
+    ucsc = UCSCapi()
+    res = ucsc.query("chr20:39788239-39788373")
+    transcript = res.longest()
+    assert(transcript['transcript'] == 'NM002660.2')
+
+
+def test_gene_transcripts():
+    llama = LlamaEnsembl()
+    ucsc = UCSCapi()
+    gene = 'BRCA1'
+    chrom, start, end = llama.get_gene_pos(gene)
+    res = ucsc.query("chr{}:{}-{}".format(chrom, start, end))
+    transcript = res.longest(gene)
+    print(transcript['transcript'])
+
+
+def test_table_annotation():
+    df = pd.DataFrame({'chrom': ['17', 'chr20'], 'start': [41196312, 39765265],
+                       'end': [41277500, 39767773], 'gene': ['BRCA1', 'PLCG1']})
+    ndf1 = annotate(df, ['gene'])
+    ndf2 = annotate(df, ['chrom', 'start', 'end'])
+    assert(ndf1.shape[0] == 2)
+    assert(ndf2.shape[0] == 2)
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         test_cosmic_id()
+        test_cosmic_id_v3()
         test_annotation()
+        test_ucsc()
+        test_gene_transcripts()
+        test_table_annotation()
