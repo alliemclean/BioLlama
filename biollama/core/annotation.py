@@ -250,7 +250,7 @@ class UCSCResult(object):
         maxlen = 0
         maxrec = None
         if gene is not None:
-            records = [rec for rec in self.ncbi]
+            records = [rec for rec in self.ncbi if self.ncbi[rec]['gene'] == gene]
         else:
             records = self.ncbi
         for record in records:
