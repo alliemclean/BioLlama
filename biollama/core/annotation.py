@@ -92,7 +92,7 @@ class LlamaEnsembl(object):
             return '', '', ''
         return mappings['seq_region_name'], mappings['start'], mappings['end']
 
-    def parse_ref_exons(self, chrom, start, stop):
+    def parse_ref_exons(self, chrom, start, stop, gene=None, tx_col=None):
         """ Return fasta reference with only the sequences needed"""
         ens_db = self.db
         try:
@@ -112,15 +112,22 @@ class LlamaEnsembl(object):
         return transcript, ','.join([str(number) for number in trx_exons])
 
     # Annotate DataFrames
-    def annotate_dataframe(self, df, chrom_col='CHROM', start_col='START', end_col='END'):
+    def annotate_dataframe(self, df, chrom_col='CHROM', start_col='START', end_col='END', gene_col=None, tx_col=None):
         genes = []
         exons = []
         transcripts = []
         for i, row in df.iterrows():
             genes_row = self.get_genes(row[chrom_col], row[start_col], row[end_col])
+            if gene_col:
+                if row[gene_col] in genes_row:
+                    genes_row = [row[gene_col]]
+                else:
+                    print('Warning!! {} not found for {}:{}-{} in row {}'.format(row[gene_col], row[chrom_col], row[start_col], row[end_col], i))
             genes.append(','.join(genes_row))
-            if len(genes_row) < 2:
-                trans_row, exons_row = self.parse_ref_exons(row[chrom_col], row[start_col], row[end_col])
+            if len(genes_row) == 1 or tx_col:
+                trans_row, exons_row = self.parse_ref_exons(row[chrom_col], row[start_col], row[end_col], gene=genes_row[0], tx_col=tx_col)
+            elif len(genes_row) == 0:
+                trans_row, exons_row = self.parse_ref_exons(row[chrom_col], row[start_col], row[end_col], tx_col=tx_col)
             else:
                 trans_row = ''
                 exons_row = ''
@@ -249,6 +256,7 @@ class UCSCResult(object):
         """ get longest transcript """
         maxlen = 0
         maxrec = None
+        data = {'transcript': None}
         if gene is not None:
             records = [rec for rec in self.ncbi if self.ncbi[rec]['gene'] == gene]
         else:
@@ -257,8 +265,9 @@ class UCSCResult(object):
             if self.ncbi[record]['cds_length'] > maxlen:
                 maxrec = record
                 maxlen = self.ncbi[record]['cds_length']
-        data = self.ncbi[maxrec]
-        data['transcript'] = maxrec
+        if maxrec:
+            data = self.ncbi[maxrec]
+            data['transcript'] = maxrec
         return data
 
     def genes(self):
@@ -290,3 +299,56 @@ class UCSCapi(object):
 
         decoded = res.json()
         return UCSCResult(decoded)
+
+    def annotate_dataframe(self, df):
+        dd = {k: [] for k in ['chrom', 'start', 'end', 'gene', 'strand', 'transcript', 'exons']}
+        memory = {}
+        for i, row in df.iterrows():
+            adj_s = 0
+            adj_e = 0
+            if row['start'] == row['end']:
+                adj_s = -1
+                adj_e = 1
+                print('Warning!!  Same start and end positions.  Use base 0 open end.')
+            ucsc_res = self.query("{}:{}-{}".format(row['chrom'], row['start'] + adj_s, row['end'] + adj_e))
+            if 'transcript' not in df.columns:
+                gene = None
+                transcript = None
+                if 'gene' in df.columns:
+                    gene = row['gene']
+                    if gene in memory:
+                        transcript = memory[gene]
+                if not transcript:
+                    transcript = ucsc_res.longest(gene=gene)['transcript']
+            else:
+                transcript = row['transcript']
+            if transcript:
+                gene = ucsc_res.ncbi[transcript]['gene']
+                memory[gene] = transcript
+                strand = ucsc_res.ncbi[transcript]['strand']
+                exon_df = ucsc_res.ncbi[transcript]['exon_df']
+                isect = exon_df[(row['start'] <= exon_df['end']) & (exon_df['start'] <= row['end'])]
+                if isect.shape[0] > 0:
+                    exons = ','.join([str(v) for v in isect['exon_id'].values])
+                else:
+                    if strand == '+':
+                        exons = exon_df[row['start'] > exon_df['end']]
+                        if exons.shape[0] > 0:
+                            intron = exons.iloc[-1]['exon_id']
+                    else:
+                        exons = exon_df[row['end'] < exon_df['start']]
+                        if exons.shape[0] > 0:
+                            intron = exons.iloc[0]['exon_id']
+                    exons = 'I{}'.format(intron)
+            else:
+                exons = ''
+                transcript = ''
+                strand = ''
+            dd['chrom'].append(row['chrom'])
+            dd['start'].append(row['start'])
+            dd['end'].append(row['end'])
+            dd['gene'].append(gene)
+            dd['strand'].append(strand)
+            dd['transcript'].append(transcript)
+            dd['exons'].append(exons)
+        return pd.DataFrame(dd)
