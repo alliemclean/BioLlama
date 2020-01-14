@@ -70,6 +70,8 @@ class LlamaEnsembl(object):
         return df
 
     def get_genes(self, chrom, start, stop):
+        if isinstance(chrom, str):
+            chrom = chrom.replace('chr', '')
         return [gobj.gene_name for gobj in self.db.genes_at_locus(chrom, start, stop)]
 
     def get_gene_pos(self, gene):
@@ -95,6 +97,8 @@ class LlamaEnsembl(object):
     def parse_ref_exons(self, chrom, start, stop, gene=None, tx_col=None):
         """ Return fasta reference with only the sequences needed"""
         ens_db = self.db
+        if isinstance(chrom, str):
+            chrom = chrom.replace('chr', '')
         try:
             exons = ens_db.exons_at_locus(chrom, start, stop)
         except ValueError as e:
@@ -125,7 +129,7 @@ class LlamaEnsembl(object):
                     print('Warning!! {} not found for {}:{}-{} in row {}'.format(row[gene_col], row[chrom_col], row[start_col], row[end_col], i))
             genes.append(','.join(genes_row))
             if len(genes_row) == 1 or tx_col:
-                trans_row, exons_row = self.parse_ref_exons(row[chrom_col], row[start_col], row[end_col], gene=genes_row[0], tx_col=tx_col)
+                trans_row, exons_row = self.parse_ref_exons(row[chrom_col], row[start_col], row[end_col], gene=genes_row[0], tx_col=tx_col)  # TODO - add fucntionality to choose gene and transcript
             elif len(genes_row) == 0:
                 trans_row, exons_row = self.parse_ref_exons(row[chrom_col], row[start_col], row[end_col], tx_col=tx_col)
             else:
@@ -254,7 +258,7 @@ class UCSCResult(object):
 
     def longest(self, gene=None):
         """ get longest transcript """
-        maxlen = 0
+        maxlen = -1
         maxrec = None
         data = {'transcript': None}
         if gene is not None:
@@ -310,7 +314,10 @@ class UCSCapi(object):
                 adj_s = -1
                 adj_e = 1
                 print('Warning!!  Same start and end positions.  Use base 0 open end.')
-            ucsc_res = self.query("{}:{}-{}".format(row['chrom'], row['start'] + adj_s, row['end'] + adj_e))
+            chrom = row['chrom']
+            if not chrom.startswith('chr'):
+                chrom = "chr{}".format(chrom)
+            ucsc_res = self.query("{}:{}-{}".format(chrom, row['start'] + adj_s, row['end'] + adj_e))
             if 'transcript' not in df.columns:
                 gene = None
                 transcript = None

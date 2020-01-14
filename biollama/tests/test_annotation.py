@@ -27,14 +27,15 @@ def test_annotation():
 
 
 def test_ucsc_annotation():
+    # 0-based as opposed to ensembl which is 1-based query
     llama = UCSCapi()
-    df = pd.DataFrame({'chrom': ['chr1', 'chr1', 'chr1', 'chr17', '7', '7'], 'start': [2139276, 3585000, 153330766, 41244573, 116412043, 116412044], 'end': [2139437, 3585163, 153330797, 41245953, 116412043, 116412044],
-                       'gene': ['FAAP20', 'TP73', 'S100A9', 'BRCA1', 'MET', 'MET'], 'exon_exp': ['I2', 'I1', '2', '10', '14', ''],
+    df = pd.DataFrame({'chrom': ['chr1', 'chr1', 'chr1', 'chr17', '7', '7'], 'start': [2139276, 3585000, 153330766, 41244573, 116412042, 116412044], 'end': [2139437, 3585163, 153330797, 41245953, 116412043, 116412044],
+                       'gene_exp': ['FAAP20', 'TP73', 'S100A9', 'BRCA1', 'MET', 'MET'], 'exon_exp': ['I2', 'I1', '2', '10', '14', 'I14'],
                        'strand_exp': ['-', '+', '+', '-', '+', '+']})
     ndf = llama.annotate_dataframe(df)
     mdf = pd.concat([df, ndf], axis=1)
     print(mdf)
-    assert(mdf[mdf['genes'] != mdf['gene_exp']].shape[0] == 0)
+    assert(mdf[mdf['gene'] != mdf['gene_exp']].shape[0] == 0)
     assert(mdf[mdf['exons'] != mdf['exon_exp']].shape[0] == 0)
 
 
@@ -42,7 +43,7 @@ def test_ucsc():
     ucsc = UCSCapi()
     res = ucsc.query("chr20:39788239-39788373")
     transcript = res.longest()
-    assert(transcript['transcript'] == 'NM002660.2')
+    assert(transcript['transcript'] == 'NM_002660.2')
 
 
 def test_gene_transcripts():
@@ -61,7 +62,7 @@ def test_table_annotation():
     ndf1 = annotate(df, ['gene'])
     ndf2 = annotate(df, ['chrom', 'start', 'end'])
     assert(ndf1.shape[0] == 2)
-    assert(ndf2.shape[0] == 2)
+    assert(ndf2.shape[0] == 3)
 
 
 if __name__ == "__main__":

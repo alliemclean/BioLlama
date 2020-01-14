@@ -25,11 +25,13 @@ def annotate(df, cols):
             dd['transcripts'].append(res.longest(gene)['transcript'])
             mergecol = cols[0]
     elif len(cols) == 3:
+        dd['genes'] = []
         df['region'] = df.apply(get_regions, axis=1, args=[cols])
         regions = df['region'].values
         for region in regions:
             res = ucsc.query(region)
             for gene in res.genes():
+                dd['genes'].append(gene)
                 dd['query'].append(region)
                 dd['transcripts'].append(res.longest(gene)['transcript'])
                 mergecol = 'region'
