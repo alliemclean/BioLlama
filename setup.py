@@ -26,7 +26,7 @@ def read_requirements():
 
 setup(
     name='biollama',
-    version='0.0.1',
+    version='0.0.2',
     packages=find_packages(),
     install_requires=read_requirements(),
     url='',
