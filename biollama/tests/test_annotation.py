@@ -71,7 +71,7 @@ def test_ucsc():
     try:
         assert(transcript['transcript'] == 'NM_002660.3')
     except AssertionError as e:
-        print("{} is not equal to {}".format(transcript['transcript'], "NM_002660.2"))
+        print("{} is not equal to {}".format(transcript['transcript'], "NM_002660.3"))
         raise e
 
 
