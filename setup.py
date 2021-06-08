@@ -31,7 +31,8 @@ setup(
     install_requires=read_requirements(),
     url='',
     license='MIT',
-    author='Allison MacLeay',
-    author_email='allison.macleay@gmail.com',
-    description='bioinformatics tools'
+    author='Allison McLean',
+    author_email='allison.r.mclean@gmail.com',
+    description='bioinformatics tools',
+    py_modules=['biollama']
 )
