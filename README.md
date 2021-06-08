@@ -8,6 +8,8 @@ cd biollama
 python -m venv venv
 source venv/bin/activate
 python setup.py develop
+
+pyensembl install --release 75 77 --species human
 python biollama/test/test_annotation.py run
 ```
 
