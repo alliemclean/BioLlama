@@ -15,10 +15,14 @@ from . import get_pos_flds, exon_df_from_ref
 
 class LlamaEnsembl(object):
     """ Ensembl tools """
-    def __init__(self, version=75):
-        self.version = version
-        self.db = EnsemblRelease(version)
-        self.rest_url = "http://grch37.rest.ensembl.org"
+    def __init__(self, genome='hg19'):
+        if genome == 'hg19':
+            self.version = 75
+            self.rest_url = "http://grch37.rest.ensembl.org"
+        else:
+            self.version = 77
+            self.rest_url = "http://rest.ensembl.org"
+        self.db = EnsemblRelease(self.version)
 
     def rest_call(self, ext, data=None):
         if data:
@@ -147,6 +151,8 @@ class LlamaEnsembl(object):
             result[extra] = []
         response = self.get_rsids(rsid_array)
         for var in rsid_array:
+            if var not in response:
+                continue
             mapping = response[var]['mappings'][0]
             result['chrom'].append(mapping['seq_region_name'])
             result['start'].append(mapping['start'])
@@ -260,6 +266,8 @@ class UCSCResult(object):
         """ get longest transcript """
         maxlen = -1
         maxrec = None
+        nxm_maxlen = -1
+        nxm_maxrec = None
         data = {'transcript': None}
         if gene is not None:
             records = [rec for rec in self.ncbi if self.ncbi[rec]['gene'] == gene]
@@ -269,7 +277,13 @@ class UCSCResult(object):
             if self.ncbi[record]['cds_length'] > maxlen:
                 maxrec = record
                 maxlen = self.ncbi[record]['cds_length']
-        if maxrec:
+            if not record.startswith('XM') and self.ncbi[record]['cds_length'] > nxm_maxlen:
+                nxm_maxrec = record
+                nxm_maxlen = self.ncbi[record]['cds_length']
+        if nxm_maxrec:  # Return longest transcript that isn't XM_ (predicted) transcript
+            data = self.ncbi[nxm_maxrec]
+            data['transcript'] = nxm_maxrec
+        elif maxrec:
             data = self.ncbi[maxrec]
             data['transcript'] = maxrec
         return data
@@ -290,8 +304,8 @@ class UCSCResult(object):
 
 
 class UCSCapi(object):
-    def __init__(self):
-        self.url = "https://api.genome.ucsc.edu/getData/track?genome=hg19;track=ncbiRefSeq;"
+    def __init__(self, genome='hg19'):
+        self.url = "https://api.genome.ucsc.edu/getData/track?genome={};track=ncbiRefSeq;".format(genome)
 
     def query(self, region):
         chrom, start, end = get_pos_flds(region)

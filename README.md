@@ -1,11 +1,22 @@
 # BioLlama
 bioinformatics tools
 
+## Installation
+```bash
+git clone <biollama_url>
+cd biollama
+python -m venv venv
+source venv/bin/activate
+python setup.py develop
+python biollama/test/test_annotation.py run
+```
+
 ## Annotate a dataframe with Ensembl
 ```python
 import pandas as pd
 from biollama.core.annotation import LlamaEnsembl, UCSCapi
-llama = LlamaEnsembl()
+llama = LlamaEnsembl()  # hg19 by default
+#llama = LlamaEnsembl(genome='hg38')
 
 # get all genes at a given position
 llama.db.genes_at_locus('chr15', 32990907, 33011217)
@@ -20,6 +31,7 @@ mdf = pd.concat([df, ndf], axis=1)
 df = llama.annotate_variants(["rs11111", "rs222222"])
 
 # annotate with UCSC
-llama = UCSCapi()
+llama = UCSCapi() # hg19 by default
+# llama = UCSCapi(genome='hg38')
 xdf = llama.annotate_dataframe(df)
 ```

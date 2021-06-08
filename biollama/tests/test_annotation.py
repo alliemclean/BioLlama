@@ -39,11 +39,40 @@ def test_ucsc_annotation():
     assert(mdf[mdf['exons'] != mdf['exon_exp']].shape[0] == 0)
 
 
+def test_annotation_hg38():
+    llama = LlamaEnsembl(genome='hg38')
+    df = pd.DataFrame({'CHROM': ['chr1', 'chr17', '7', '7'], 'START': [153358330, 43092618, 116771890, 116773071], 'END': [153358350, 43092648, 116771920, 116773072],
+                       'gene_exp': ['S100A9', 'BRCA1', 'MET', 'MET'], 'exon_exp': ['2', '10', '14', ''],
+                       'strand_exp': ['+', '-', '+', '+']})
+    ndf = llama.annotate_dataframe(df)
+    mdf = pd.concat([df, ndf], axis=1)
+    print(mdf)
+    assert(mdf[mdf['genes'] != mdf['gene_exp']].shape[0] == 0)
+    assert(mdf[mdf['exons'] != mdf['exon_exp']].shape[0] == 0)
+
+
+def test_ucsc_annotation_hg38():
+    # 0-based as opposed to ensembl which is 1-based query
+    llama = UCSCapi(genome='hg38')
+    df = pd.DataFrame({'chrom': ['chr1', 'chr1', 'chr1', 'chr17', '7', '7'], 'start': [2204473, 3665788, 153358367, 43092374, 116771988, 116771990], 'end': [2204493, 3665808, 153358397, 43092394, 116771989, 116771991],
+                       'gene_exp': ['FAAP20', 'TP73', 'S100A9', 'BRCA1', 'MET', 'MET'], 'exon_exp': ['I2', 'I1', '2', '10', '14', 'I14'],
+                       'strand_exp': ['-', '+', '+', '-', '+', '+']})
+    ndf = llama.annotate_dataframe(df)
+    mdf = pd.concat([df, ndf], axis=1)
+    print(mdf)
+    assert(mdf[mdf['gene'] != mdf['gene_exp']].shape[0] == 0)
+    assert(mdf[mdf['exons'] != mdf['exon_exp']].shape[0] == 0)
+
+
 def test_ucsc():
     ucsc = UCSCapi()
     res = ucsc.query("chr20:39788239-39788373")
     transcript = res.longest()
-    assert(transcript['transcript'] == 'NM_002660.2')
+    try:
+        assert(transcript['transcript'] == 'NM_002660.3')
+    except AssertionError as e:
+        print("{} is not equal to {}".format(transcript['transcript'], "NM_002660.2"))
+        raise e
 
 
 def test_gene_transcripts():
@@ -71,6 +100,8 @@ if __name__ == "__main__":
         test_cosmic_id_v3()
         test_ucsc_annotation()
         test_annotation()
+        test_ucsc_annotation_hg38()
+        test_annotation_hg38()
         test_ucsc()
         test_gene_transcripts()
         test_table_annotation()
